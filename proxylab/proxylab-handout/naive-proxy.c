@@ -16,7 +16,7 @@ typedef struct {
 } UriInfo;
 
 /* function prototypes */
-void doIt(int clientfd);
+void doIt(int clientfd); 
 void readRequestHdrs(rio_t *rp);
 UriInfo parseUri(char *uri);
 /* void getFileType(char *fileName, char *fileType); */
@@ -26,12 +26,11 @@ void acceptReply(int serverfd, int clientfd);
 
 
 /*
- * In this web proxy accepts requests from client(browser), and  * forwards these requests to the end server.
- * When the end server replies to the proxy, the proxy sends the * reply on to the browser.
+ * Naive Proxy实现，没有仅使用最简单的几个套接字接口函数，无线程，无I/O复用，仅支持GET
  */
-int main(int argc, char **argv)
+int main(int argc, char **argv) //在main函数当中，proxy监听等待来自客户端的连接，所以是服务器的角色
 {
-  int listenfd,clientfd;
+  int listenfd,connfd;//监听描述符与已连接描述符
   char clientHost[MAXLINE],clientPort[10];
   socklen_t clientLen;
   struct sockaddr_storage clientAddr;
@@ -50,40 +49,40 @@ int main(int argc, char **argv)
   
   while (1) {
     clientLen = sizeof(struct sockaddr_storage);
-    clientfd = Accept(listenfd, (SA *)&clientAddr, &clientLen);
-    /* clientfd and connfd are the same */
+    connfd = Accept(listenfd, (SA *)&clientAddr, &clientLen);    //服务器调用Accept函数，开始等待来自客户端的连接，成功后返回已连接描述符connfd，并向clientAddr中填写客户端的地址信息
+
     Getnameinfo((SA *)&clientAddr, clientLen, clientHost, MAXLINE,
-		clientPort, MAXLINE, 0);
+		clientPort, MAXLINE, 0); //TODO此函数的功能
     printf("Connected to (%s, %s)\n",clientHost, clientPort);
-    doIt(clientfd);
-    Close(clientfd);
+    doIt(connfd);
+    Close(connfd);
   }
   printf("%s", user_agent_hdr);
   exit(0);            
 }
 
 /*
- * Sends requests to server, and replies to client.
+ * 在接收到客户端的请求信息后，将他转发到目标服务器，所以proxy现在是----"假"客户端的角色
  */
 void doIt(int clientfd) {
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
   UriInfo info;
   rio_t rio;
-  /* Read request line and headers */
+  /* 读取请求行和头部 */
   Rio_readinitb(&rio, clientfd);
   Rio_readlineb(&rio, buf, MAXLINE);
 
   printf("Request headers:\n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
-  if (strcasecmp(method, "GET")) {
+  if (strcasecmp(method, "GET")) { //Naive版本proxy只支持GET
     clientError(clientfd, method, "501", "Not implemented",
 		"Proxy does not implement this method");
     return;
   }
   readRequestHdrs(&rio);
 
-  /* Parse URI from GET request */
+  /* 从URI中解析GET请求*/
   info = parseUri(uri);
   if (strlen(info.serverHost) == 0) {
     clientError(clientfd, uri, "400", "Bad Request",
@@ -98,9 +97,9 @@ void doIt(int clientfd) {
     return;
 }
 
-  forwardRequest(serverfd, info.serverHost, info.fileName, method);
+  forwardRequest(serverfd, info.serverHost, info.fileName, method); //此函数将真客户端的请求转发至真服务器
   
-  acceptReply(serverfd, clientfd);
+  acceptReply(serverfd, clientfd);//将真服务器的响应转发回真客户端
 }
 
 
@@ -117,14 +116,14 @@ void readRequestHdrs(rio_t *rp) {
 }
 
 /*
- * Parse serverHost, serverPort, filename from URI (packed into a struct).
+ * 从URI中解析serverHost, serverPort, filename等信息，注意URI是一个结构体
  */
 UriInfo parseUri(char *uri) {
   UriInfo info;
   char *ptr, *hostHeadPtr, *fileName, *portPtr;
   int hostLen;
   
-  /* Init default values */
+  /* 初始化 */
   strcpy(info.serverPort, "80");
   strcpy(info.fileName, "/");
   info.serverHost[0] = '\0';
@@ -134,11 +133,11 @@ UriInfo parseUri(char *uri) {
     printf("Invalid URI: %s\n", uri);
     return info;
   }
-  ptr += 3; //ignore "://"
+  ptr += 3; //跳过"://"这个符号
   hostHeadPtr = (char *) ptr;
   fileName = strstr(ptr, "/");
   
-  /* Get filename (or say, file path) */
+  /* 解析文件路径fileName */
   if (fileName != NULL) {
     strcpy(info.fileName, fileName);
     hostLen = fileName - hostHeadPtr;
@@ -148,19 +147,19 @@ UriInfo parseUri(char *uri) {
     hostLen = strlen(hostHeadPtr);
   }
 
-  /* Get host:port */
+  /* 解析host:port */
   char hostPort[hostLen + 1];
   strncpy(hostPort, hostHeadPtr, hostLen);
   hostPort[hostLen] = '\0';
 
-  /* Get port */
+  /* 获取port */
   portPtr = strstr(hostPort, ":");
   if (portPtr != NULL) {
     *portPtr = '\0';
     strcpy(info.serverHost, hostPort);
-    strcpy(info.serverPort, portPtr + 1);//ignore ':'  
+    strcpy(info.serverPort, portPtr + 1);//忽略':'符号
   } else {
-    strcpy(info.serverHost, hostPort); //if no ":port", then hostPort is only hostname
+    strcpy(info.serverHost, hostPort); //如果不存在":port",则hostPort就是hostname
   }
   
   return info;
@@ -196,7 +195,7 @@ void clientError(int fd, char *cause, char *errnum,
 /* $end clientError */
 
 /*
- * Forward request to server
+ * 将请求信息转发至服务器
  */
 void forwardRequest(int serverfd, char *hostName, char *fileName, char *method) {
   char buf[MAXLINE];
@@ -212,7 +211,7 @@ void forwardRequest(int serverfd, char *hostName, char *fileName, char *method) 
 
 
 /*
- *  Reads each line from the server, and sends it back to the client.
+ *  将真服务器的响应转发回真客户端
  */
 void acceptReply(int serverfd, int clientfd) {
   rio_t rio;
