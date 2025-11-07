@@ -1,21 +1,19 @@
 #include <stdio.h>
 #include "csapp.h"
 
-/* Recommended max cache and object sizes */
-#define MAX_CACHE_SIZE 1049000
 #define MAX_OBJECT_SIZE 102400
 
-/* You won't lose style points for including this long line in your code */
+/* 在代码中包含这行长注释不会丢失样式分数 */
 static const char *user_agent_hdr = "User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:10.0.3) Gecko/20120305 Firefox/10.0.3\r\n";
 
-/* server information is in this struct*/
+/* 服务器信息存储在这个结构体中*/
 typedef struct {
   char serverHost[MAXLINE];
   char serverPort[10];
   char fileName[MAXLINE];
 } UriInfo;
 
-/* function prototypes */
+/* 函数原型声明 */
 void doIt(int clientfd); 
 void readRequestHdrs(rio_t *rp);
 UriInfo parseUri(char *uri);
@@ -26,16 +24,16 @@ void acceptReply(int serverfd, int clientfd);
 
 
 /*
- * Naive Proxy实现，没有仅使用最简单的几个套接字接口函数，无线程，无I/O复用，仅支持GET
+ * 朴素代理实现，仅使用最简单的几个套接字接口函数，无线程，无I/O复用，仅支持GET方法
  */
-int main(int argc, char **argv) //在main函数当中，proxy监听等待来自客户端的连接，所以是服务器的角色
+int main(int argc, char **argv) //在main函数中，proxy监听等待来自客户端的连接，所以是服务器的角色
 {
   int listenfd,connfd;//监听描述符与已连接描述符
   char clientHost[MAXLINE],clientPort[10];
   socklen_t clientLen;
   struct sockaddr_storage clientAddr;
   
-  /* Check command line args*/
+  /* 检查命令行参数*/
   if (argc != 2) {
     fprintf(stderr, "usage: %s <port>\n",argv[0]);
     exit(1);
@@ -62,7 +60,7 @@ int main(int argc, char **argv) //在main函数当中，proxy监听等待来自�
 }
 
 /*
- * 在接收到客户端的请求信息后，将他转发到目标服务器，所以proxy现在是----"假"客户端的角色
+ * 在接收到客户端的请求信息后，将它转发到目标服务器，所以proxy现在是----"假"客户端的角色
  */
 void doIt(int clientfd) {
   char buf[MAXLINE], method[MAXLINE], uri[MAXLINE], version[MAXLINE];
@@ -75,7 +73,7 @@ void doIt(int clientfd) {
   printf("Request headers:\n");
   printf("%s", buf);
   sscanf(buf, "%s %s %s", method, uri, version);
-  if (strcasecmp(method, "GET")) { //Naive版本proxy只支持GET
+  if (strcasecmp(method, "GET")) { //朴素版本proxy只支持GET方法
     clientError(clientfd, method, "501", "Not implemented",
 		"Proxy does not implement this method");
     return;
@@ -152,7 +150,7 @@ UriInfo parseUri(char *uri) {
   strncpy(hostPort, hostHeadPtr, hostLen);
   hostPort[hostLen] = '\0';
 
-  /* 获取port */
+  /* 获取端口号 */
   portPtr = strstr(hostPort, ":");
   if (portPtr != NULL) {
     *portPtr = '\0';
@@ -166,7 +164,7 @@ UriInfo parseUri(char *uri) {
 }
 
 /*
- * clienterror - returns an error message to the client
+ * clienterror - 向客户端返回错误信息
  */
 /* $begin clientError */
 void clientError(int fd, char *cause, char *errnum, 
@@ -174,13 +172,13 @@ void clientError(int fd, char *cause, char *errnum,
 {
     char buf[MAXLINE];
 
-    /* Print the HTTP response headers */
+    /* 打印HTTP响应头 */
     sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "Content-type: text/html\r\n\r\n");
     Rio_writen(fd, buf, strlen(buf));
 
-    /* Print the HTTP response body */
+    /* 打印HTTP响应体 */
     sprintf(buf, "<html><title>Tiny Error</title>");
     Rio_writen(fd, buf, strlen(buf));
     sprintf(buf, "<body bgcolor=""ffffff"">\r\n");
@@ -199,7 +197,7 @@ void clientError(int fd, char *cause, char *errnum,
  */
 void forwardRequest(int serverfd, char *hostName, char *fileName, char *method) {
   char buf[MAXLINE];
-  /* Constructs forward header */
+  /* 构造转发头部 */
   sprintf(buf, "%s %s HTTP/1.0\r\n", method, fileName);
   sprintf(buf + strlen(buf), "Host: %s\r\n", hostName);
   sprintf(buf + strlen(buf), "%s", user_agent_hdr);
@@ -224,25 +222,6 @@ void acceptReply(int serverfd, int clientfd) {
       Rio_writen(clientfd, buf, n);
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
